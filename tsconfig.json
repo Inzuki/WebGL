@@ -1,0 +1,8 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "out": "program.js",
+        "watch": true,
+        "types": ["node"]
+    }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WebGL</title>
+        <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+        <script type="text/javascript" src="glm.js"></script>
+
+        <script id="shader-fs" type="x-shader/x-fragment">
+            precision mediump float;
+
+            varying vec2 out_tex_coords;
+
+            uniform sampler2D tex;
+
+            void main(void){
+                gl_FragColor = texture2D(tex, vec2(out_tex_coords.s, out_tex_coords.t));
+            }
+        </script>
+
+        <script id="shader-vs" type="x-shader/x-vertex">
+            attribute vec3 position;
+            attribute vec2 tex_coords;
+
+            uniform mat4 view_matrix;
+            uniform mat4 proj_matrix;
+            uniform mat4 model_matrix;
+
+            varying vec2 out_tex_coords;
+
+            void main(void){
+                gl_Position = proj_matrix * view_matrix * model_matrix * vec4(position, 1.0);
+                out_tex_coords = tex_coords;
+            }
+        </script>
+    </head>
+    <body onload="webGLStart();">
+        <script src="program.js"></script>
+        <canvas id="glCanvas" style="border: none;" width="800" height="600">Your browser does not support HTML5.</canvas>
+        <div id="tracker"></div>
+    </body>
+</html>
