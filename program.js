@@ -1,5 +1,100 @@
 /// <reference path="Matrix.d.ts"/>
 'use strict';
+const RADIUS = 20;
+function degToRad(degrees) { return degrees * Math.PI / 180; }
+// keyboard information
+var currentlyPressedKeys = {};
+function handleKeyDown(event) { currentlyPressedKeys[event.keyCode] = true; }
+function handleKeyUp(event) { currentlyPressedKeys[event.keyCode] = false; }
+// Camera class
+class Camera {
+    constructor() {
+        this.cameraPos = vec3.create();
+        this.cameraPos = [0.0, 1.5, 3.0];
+        this.cameraFront = vec3.create();
+        this.cameraFront = [0.0, 0.0, -1.0];
+        this.cameraUp = vec3.create();
+        this.cameraUp = [0.0, 1.0, 0.0];
+        this.speed = 0.009;
+        this.x = 50;
+        this.y = 50;
+        this.yaw = -90.0;
+        this.pitch = 0.0;
+        this.firstMouse = true;
+        this.lastX = 0.0;
+        this.lastY = 0.0;
+        document.onkeydown = handleKeyDown;
+        document.onkeyup = handleKeyUp;
+    }
+    getSpeed() { return this.speed; }
+    getCameraPos() { return this.cameraPos; }
+    getCameraFront() { return this.cameraFront; }
+    getCameraUp() { return this.cameraUp; }
+    // sets the camera's height (disable all calls for this to enable noclip)
+    setCamY(elevation) { this.cameraPos[1] = elevation; }
+    setSpeed(speed) { this.speed = speed; }
+    setLastXY(lastX, lastY) { this.lastX = lastX; this.lastY = lastY; }
+    handle_mouse_input() {
+        // set a default position
+        if (this.firstMouse) {
+            this.lastX = this.x;
+            this.lastY = this.y;
+            this.firstMouse = false;
+        }
+        var offset_x = this.x - this.lastX, offset_y = this.y - this.lastY;
+        this.lastX = this.x;
+        this.lastY = this.y;
+        var sensitivity = 0.25;
+        offset_x *= sensitivity;
+        offset_y *= sensitivity;
+        this.yaw += offset_x;
+        this.pitch += offset_y;
+        if (this.pitch > 89.0)
+            this.pitch = 89.0;
+        if (this.pitch < -89.0)
+            this.pitch = -89.0;
+        var front = vec3.create();
+        front[0] = Math.cos(degToRad(this.yaw)) * Math.cos(degToRad(this.pitch));
+        front[1] = Math.sin(degToRad(this.pitch));
+        front[2] = Math.sin(degToRad(this.yaw)) * Math.cos(degToRad(this.pitch));
+        vec3.normalize(this.cameraFront, front);
+    }
+    handle_keyboard_input() {
+        var ts_speed = cam.getSpeed() * deltaTime;
+        var speedVec = vec3.create();
+        speedVec = [ts_speed, ts_speed, ts_speed];
+        var vecTrash = vec3.create();
+        if (currentlyPressedKeys[87]) {
+            vec3.multiply(vecTrash, this.cameraFront, speedVec);
+            vec3.add(this.cameraPos, this.cameraPos, vecTrash);
+        }
+        if (currentlyPressedKeys[65]) {
+            vec3.cross(vecTrash, this.cameraFront, this.cameraUp);
+            vec3.normalize(vecTrash, vecTrash);
+            vec3.multiply(vecTrash, vecTrash, speedVec);
+            vec3.subtract(this.cameraPos, this.cameraPos, vecTrash);
+        }
+        if (currentlyPressedKeys[83]) {
+            vec3.multiply(vecTrash, this.cameraFront, speedVec);
+            vec3.subtract(this.cameraPos, this.cameraPos, vecTrash);
+        }
+        if (currentlyPressedKeys[68]) {
+            vec3.cross(vecTrash, this.cameraFront, this.cameraUp);
+            vec3.normalize(vecTrash, vecTrash);
+            vec3.multiply(vecTrash, vecTrash, speedVec);
+            vec3.add(this.cameraPos, this.cameraPos, vecTrash);
+        }
+    }
+}
+let cam = new Camera();
+// Shader class
+class Shader {
+    constructor() {
+    }
+    load_shaders() {
+    }
+}
+let shader = new Shader();
 var gl, canvas; // opengl and canvas instance
 // initialize opengl
 function initGL(canvas) {
@@ -74,7 +169,6 @@ function initShaders() {
     // texture (as sampler2D)
     shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "tex");
 }
-function degToRad(degrees) { return degrees * Math.PI / 180; }
 function handleLoadedTexture(texture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -226,82 +320,16 @@ function draw_crate() {
     setMatrixUniforms();
     gl.drawElements(gl.TRIANGLES, cubeIdx.numItems, gl.UNSIGNED_SHORT, 0);
 }
-// camera information
-var cameraPos = vec3.create(), cameraFront = vec3.create(), cameraUp = vec3.create();
-cameraPos = [0.0, 1.5, 3.0];
-cameraFront = [0.0, 0.0, -1.0];
-cameraUp = [0.0, 1.0, 0.0];
-var speed = 0.009;
 // time based on the framerate so it's constant no matter how slow or fast the game is running
 var deltaTime = 0.0, lastFrame = 0.0;
-var currentlyPressedKeys = {};
-function handleKeyDown(event) { currentlyPressedKeys[event.keyCode] = true; }
-function handleKeyUp(event) { currentlyPressedKeys[event.keyCode] = false; }
-function handle_keyboard_input() {
-    var ts_speed = speed * deltaTime;
-    var speedVec = vec3.create();
-    speedVec = [ts_speed, ts_speed, ts_speed];
-    var vecTrash = vec3.create();
-    if (currentlyPressedKeys[87]) {
-        vec3.multiply(vecTrash, cameraFront, speedVec);
-        vec3.add(cameraPos, cameraPos, vecTrash);
-    }
-    if (currentlyPressedKeys[65]) {
-        vec3.cross(vecTrash, cameraFront, cameraUp);
-        vec3.normalize(vecTrash, vecTrash);
-        vec3.multiply(vecTrash, vecTrash, speedVec);
-        vec3.subtract(cameraPos, cameraPos, vecTrash);
-    }
-    if (currentlyPressedKeys[83]) {
-        vec3.multiply(vecTrash, cameraFront, speedVec);
-        vec3.subtract(cameraPos, cameraPos, vecTrash);
-    }
-    if (currentlyPressedKeys[68]) {
-        vec3.cross(vecTrash, cameraFront, cameraUp);
-        vec3.normalize(vecTrash, vecTrash);
-        vec3.multiply(vecTrash, vecTrash, speedVec);
-        vec3.add(cameraPos, cameraPos, vecTrash);
-    }
-}
-const RADIUS = 20;
-var x = 50;
-var y = 50;
-var yaw = -90.0;
-var pitch = 0.0;
-var firstMouse = true;
-var lastX, lastY;
-var tracker;
-function handle_mouse_input() {
-    if (firstMouse) {
-        lastX = x;
-        lastY = y;
-        firstMouse = false;
-    }
-    var offset_x = x - lastX, offset_y = y - lastY;
-    lastX = x;
-    lastY = y;
-    var sensitivity = 0.25;
-    offset_x *= sensitivity;
-    offset_y *= sensitivity;
-    yaw += offset_x;
-    pitch += offset_y;
-    if (pitch > 89.0)
-        pitch = 89.0;
-    if (pitch < -89.0)
-        pitch = -89.0;
-    var front = vec3.create();
-    front[0] = Math.cos(degToRad(yaw)) * Math.cos(degToRad(pitch));
-    front[1] = Math.sin(degToRad(pitch));
-    front[2] = Math.sin(degToRad(yaw)) * Math.cos(degToRad(pitch));
-    vec3.normalize(cameraFront, front);
-}
 // render the scene (main function for rendering all objects in the scene)
 function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    cam.setCamY(2.5);
     var posPlusFront = vec3.create();
-    vec3.add(posPlusFront, cameraPos, cameraFront);
-    mat4.lookAt(vMatrix, cameraPos, posPlusFront, cameraUp, [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    vec3.add(posPlusFront, cam.getCameraPos(), cam.getCameraFront());
+    mat4.lookAt(vMatrix, cam.getCameraPos(), posPlusFront, cam.getCameraUp(), [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     mat4.perspective(pMatrix, 45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
     mat4.identity(mMatrix);
     mvPushMatrix();
@@ -317,14 +345,14 @@ function animate() {
 // tick function (time)
 function tick() {
     requestAnimationFrame(tick);
-    handle_keyboard_input();
-    handle_mouse_input();
+    cam.handle_keyboard_input();
+    cam.handle_mouse_input();
     drawScene();
     animate();
 }
 function updatePosition(e) {
-    x += e.movementX;
-    y -= e.movementY;
+    cam.x += e.movementX;
+    cam.y -= e.movementY;
 }
 function lockChangeAlert() {
     if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas)
@@ -342,15 +370,13 @@ function webGLStart() {
     canvas.onclick = function () { canvas.requestPointerLock(); };
     document.addEventListener('pointerlockchange', lockChangeAlert, false);
     document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
-    tracker = document.getElementById("tracker");
-    lastX = canvas.width / 2.0;
-    lastY = canvas.height / 2.0;
+    // set where the cursor will lock to
+    cam.setLastXY(canvas.width / 2.0, canvas.height / 2.0);
+    cam.tracker = document.getElementById("tracker");
     initGL(canvas);
     loadTexture();
     initShaders();
     gl.clearColor(0.1, 0.2, 0.05, 1.0);
     gl.enable(gl.DEPTH_TEST);
-    document.onkeydown = handleKeyDown;
-    document.onkeyup = handleKeyUp;
     tick();
 }
