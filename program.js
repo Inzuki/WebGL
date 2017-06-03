@@ -2,6 +2,28 @@
 'use strict';
 const RADIUS = 20;
 function degToRad(degrees) { return degrees * Math.PI / 180; }
+var gl, canvas; // opengl and canvas instance
+// initialize opengl
+function initGL(canvas) {
+    // check if the browser supports WebGL
+    try {
+        gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        gl.viewportWidth = canvas.width;
+        gl.viewportHeight = canvas.height;
+    }
+    catch (e) { }
+    if (!gl)
+        alert("ERROR: Could not initialize WebGL");
+    // check if the browser supports mouse locking
+    try {
+        var havePointerLock = 'pointerLockElement' in document ||
+            'mozPointerLockElement' in document ||
+            'webkitPointerLockElement' in document;
+    }
+    catch (e) { }
+    if (!havePointerLock)
+        alert("ERROR: Your browser does not support mouse locking");
+}
 // keyboard information
 var currentlyPressedKeys = {};
 function handleKeyDown(event) { currentlyPressedKeys[event.keyCode] = true; }
@@ -90,85 +112,61 @@ let cam = new Camera();
 // Shader class
 class Shader {
     constructor() {
+        //this.init_shaders();
     }
-    load_shaders() {
+    // read shader information from the main HTML file
+    load_shader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript)
+            return null;
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3)
+                str += k.textContent;
+            k = k.nextSibling;
+        }
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment")
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        else if (shaderScript.type == "x-shader/x-vertex")
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        else
+            return null;
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+    // compile the shaders
+    init_shaders() {
+        var fragmentShader = this.load_shader(gl, "shader-fs");
+        var vertexShader = this.load_shader(gl, "shader-vs");
+        this.shader = gl.createProgram();
+        gl.attachShader(this.shader, vertexShader);
+        gl.attachShader(this.shader, fragmentShader);
+        gl.linkProgram(this.shader);
+        if (!gl.getProgramParameter(this.shader, gl.LINK_STATUS))
+            alert("ERROR: Could not initialize shaders");
+        gl.useProgram(this.shader);
+        // position
+        this.shader.vertexPositionAttribute = gl.getAttribLocation(this.shader, "position");
+        gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
+        // texture coordinates
+        this.shader.textureCoordAttribute = gl.getAttribLocation(this.shader, "tex_coords");
+        gl.enableVertexAttribArray(this.shader.textureCoordAttribute);
+        // perspective and model and view matrices in shader
+        this.shader.pMatrixUniform = gl.getUniformLocation(this.shader, "proj_matrix");
+        this.shader.vMatrixUniform = gl.getUniformLocation(this.shader, "view_matrix");
+        this.shader.mMatrixUniform = gl.getUniformLocation(this.shader, "model_matrix");
+        // texture (as sampler2D)
+        this.shader.samplerUniform = gl.getUniformLocation(this.shader, "tex");
     }
 }
-let shader = new Shader();
-var gl, canvas; // opengl and canvas instance
-// initialize opengl
-function initGL(canvas) {
-    // check if the browser supports WebGL
-    try {
-        gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-        gl.viewportWidth = canvas.width;
-        gl.viewportHeight = canvas.height;
-    }
-    catch (e) { }
-    if (!gl)
-        alert("ERROR: Could not initialize WebGL");
-    // check if the browser supports mouse locking
-    try {
-        var havePointerLock = 'pointerLockElement' in document ||
-            'mozPointerLockElement' in document ||
-            'webkitPointerLockElement' in document;
-    }
-    catch (e) { }
-    if (!havePointerLock)
-        alert("ERROR: Your browser does not support mouse locking");
-}
-// load shaders
-function getShader(gl, id) {
-    var shaderScript = document.getElementById(id);
-    if (!shaderScript)
-        return null;
-    var str = "";
-    var k = shaderScript.firstChild;
-    while (k) {
-        if (k.nodeType == 3)
-            str += k.textContent;
-        k = k.nextSibling;
-    }
-    var shader;
-    if (shaderScript.type == "x-shader/x-fragment")
-        shader = gl.createShader(gl.FRAGMENT_SHADER);
-    else if (shaderScript.type == "x-shader/x-vertex")
-        shader = gl.createShader(gl.VERTEX_SHADER);
-    else
-        return null;
-    gl.shaderSource(shader, str);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert(gl.getShaderInfoLog(shader));
-        return null;
-    }
-    return shader;
-}
-// create and initialize the shader program and shaders
-var shaderProgram;
-function initShaders() {
-    var fragmentShader = getShader(gl, "shader-fs");
-    var vertexShader = getShader(gl, "shader-vs");
-    shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS))
-        alert("ERROR: Could not initialize shaders");
-    gl.useProgram(shaderProgram);
-    // position
-    shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "position");
-    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
-    // texture coordinates
-    shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "tex_coords");
-    gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
-    // perspective and model and view matrices in shader
-    shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "proj_matrix");
-    shaderProgram.vMatrixUniform = gl.getUniformLocation(shaderProgram, "view_matrix");
-    shaderProgram.mMatrixUniform = gl.getUniformLocation(shaderProgram, "model_matrix");
-    // texture (as sampler2D)
-    shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "tex");
-}
+let c_shader = new Shader();
 function handleLoadedTexture(texture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -204,9 +202,9 @@ function mvPopMatrix() {
     mMatrix = mMatrixStack.pop();
 }
 function setMatrixUniforms() {
-    gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
-    gl.uniformMatrix4fv(shaderProgram.vMatrixUniform, false, vMatrix);
-    gl.uniformMatrix4fv(shaderProgram.mMatrixUniform, false, mMatrix);
+    gl.uniformMatrix4fv(c_shader.shader.pMatrixUniform, false, pMatrix);
+    gl.uniformMatrix4fv(c_shader.shader.vMatrixUniform, false, vMatrix);
+    gl.uniformMatrix4fv(c_shader.shader.mMatrixUniform, false, mMatrix);
 }
 var cubePos;
 var cubeTex;
@@ -307,14 +305,14 @@ function draw_crate() {
     }
     // load up the vertex positions and send to the shader
     gl.bindBuffer(gl.ARRAY_BUFFER, cubePos);
-    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubePos.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(c_shader.shader.vertexPositionAttribute, cubePos.itemSize, gl.FLOAT, false, 0, 0);
     // load up the texture coordinates and send to the shader
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeTex);
-    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeTex.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(c_shader.shader.textureCoordAttribute, cubeTex.itemSize, gl.FLOAT, false, 0, 0);
     // load up the texture and send to the shader
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, crate_texture);
-    gl.uniform1i(shaderProgram.samplerUniform, 0);
+    gl.uniform1i(c_shader.shader.samplerUniform, 0);
     // setup indices and draw the crate
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIdx);
     setMatrixUniforms();
@@ -375,7 +373,7 @@ function webGLStart() {
     cam.tracker = document.getElementById("tracker");
     initGL(canvas);
     loadTexture();
-    initShaders();
+    c_shader.init_shaders();
     gl.clearColor(0.1, 0.2, 0.05, 1.0);
     gl.enable(gl.DEPTH_TEST);
     tick();
