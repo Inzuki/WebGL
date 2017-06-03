@@ -1,34 +1,36 @@
 /// <reference path="Matrix.d.ts"/>
+/// <reference path="Camera.ts"/>
+/// <reference path="Crate.ts"/>
+/// <reference path="Shader.ts"/>
+/// <reference path="Terrain.ts"/>
+/// <reference path="Texture.ts"/>
 'use strict';
 const RADIUS = 20;
 function degToRad(degrees) { return degrees * Math.PI / 180; }
-var gl, canvas; // opengl and canvas instance
-// initialize opengl
-function initGL(canvas) {
-    // check if the browser supports WebGL
-    try {
-        gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-        gl.viewportWidth = canvas.width;
-        gl.viewportHeight = canvas.height;
-    }
-    catch (e) { }
-    if (!gl)
-        alert("ERROR: Could not initialize WebGL");
-    // check if the browser supports mouse locking
-    try {
-        var havePointerLock = 'pointerLockElement' in document ||
-            'mozPointerLockElement' in document ||
-            'webkitPointerLockElement' in document;
-    }
-    catch (e) { }
-    if (!havePointerLock)
-        alert("ERROR: Your browser does not support mouse locking");
-}
 // keyboard information
 var currentlyPressedKeys = {};
 function handleKeyDown(event) { currentlyPressedKeys[event.keyCode] = true; }
 function handleKeyUp(event) { currentlyPressedKeys[event.keyCode] = false; }
-// Camera class
+// create the matrices
+var vMatrix = mat4.create();
+var pMatrix = mat4.create();
+var mMatrix = mat4.create();
+var mMatrixStack = [];
+function mvPushMatrix() {
+    var copy = mat4.create();
+    mat4.copy(copy, mMatrix);
+    mMatrixStack.push(copy);
+}
+function mvPopMatrix() {
+    if (mMatrixStack.length == 0)
+        throw "ERROR: Trying to pop from an empty stack";
+    mMatrix = mMatrixStack.pop();
+}
+function setMatrixUniforms() {
+    gl.uniformMatrix4fv(shader.getShader().pMatrixUniform, false, pMatrix);
+    gl.uniformMatrix4fv(shader.getShader().vMatrixUniform, false, vMatrix);
+    gl.uniformMatrix4fv(shader.getShader().mMatrixUniform, false, mMatrix);
+}
 class Camera {
     constructor() {
         this.cameraPos = vec3.create();
@@ -109,110 +111,25 @@ class Camera {
     }
 }
 let cam = new Camera();
-// Shader class
-class Shader {
-    constructor() {
-        //this.init_shaders();
-    }
-    getShader() { return this.shader; }
-    // read shader information from the main HTML file
-    load_shader(gl, id) {
-        var shaderScript = document.getElementById(id);
-        if (!shaderScript)
-            return null;
-        var str = "";
-        var k = shaderScript.firstChild;
-        while (k) {
-            if (k.nodeType == 3)
-                str += k.textContent;
-            k = k.nextSibling;
-        }
-        var shader;
-        if (shaderScript.type == "x-shader/x-fragment")
-            shader = gl.createShader(gl.FRAGMENT_SHADER);
-        else if (shaderScript.type == "x-shader/x-vertex")
-            shader = gl.createShader(gl.VERTEX_SHADER);
-        else
-            return null;
-        gl.shaderSource(shader, str);
-        gl.compileShader(shader);
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            alert(gl.getShaderInfoLog(shader));
-            return null;
-        }
-        return shader;
-    }
-    // compile the shaders
-    init_shaders() {
-        var fragmentShader = this.load_shader(gl, "shader-fs");
-        var vertexShader = this.load_shader(gl, "shader-vs");
-        this.shader = gl.createProgram();
-        gl.attachShader(this.shader, vertexShader);
-        gl.attachShader(this.shader, fragmentShader);
-        gl.linkProgram(this.shader);
-        if (!gl.getProgramParameter(this.shader, gl.LINK_STATUS))
-            alert("ERROR: Could not initialize shaders");
-        gl.useProgram(this.shader);
-        // position
-        this.shader.vertexPositionAttribute = gl.getAttribLocation(this.shader, "position");
-        gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
-        // texture coordinates
-        this.shader.textureCoordAttribute = gl.getAttribLocation(this.shader, "tex_coords");
-        gl.enableVertexAttribArray(this.shader.textureCoordAttribute);
-        // perspective and model and view matrices in shader
-        this.shader.pMatrixUniform = gl.getUniformLocation(this.shader, "proj_matrix");
-        this.shader.vMatrixUniform = gl.getUniformLocation(this.shader, "view_matrix");
-        this.shader.mMatrixUniform = gl.getUniformLocation(this.shader, "model_matrix");
-        // texture (as sampler2D)
-        this.shader.samplerUniform = gl.getUniformLocation(this.shader, "tex");
-    }
+function updatePosition(e) {
+    cam.x += e.movementX;
+    cam.y -= e.movementY;
 }
-let shader = new Shader();
-function handleLoadedTexture(texture) {
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+function lockChangeAlert() {
+    if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas || document.webkitPointerLockElement || document.msPointerLockElement)
+        document.addEventListener("mousemove", updatePosition, false);
+    else
+        document.removeEventListener("mousemove", updatePosition, false);
 }
-var crate_texture;
-// function to load textures
-function loadTexture() {
-    crate_texture = gl.createTexture();
-    crate_texture.image = new Image();
-    crate_texture.image.onload = function () {
-        handleLoadedTexture(crate_texture);
-    };
-    crate_texture.image.src = "crate.gif";
-}
-// create the matrices
-var vMatrix = mat4.create();
-var pMatrix = mat4.create();
-var mMatrix = mat4.create();
-var mMatrixStack = [];
-function mvPushMatrix() {
-    var copy = mat4.create();
-    mat4.copy(copy, mMatrix);
-    mMatrixStack.push(copy);
-}
-function mvPopMatrix() {
-    if (mMatrixStack.length == 0)
-        throw "ERROR: Trying to pop from an empty stack";
-    mMatrix = mMatrixStack.pop();
-}
-function setMatrixUniforms() {
-    gl.uniformMatrix4fv(shader.getShader().pMatrixUniform, false, pMatrix);
-    gl.uniformMatrix4fv(shader.getShader().vMatrixUniform, false, vMatrix);
-    gl.uniformMatrix4fv(shader.getShader().mMatrixUniform, false, mMatrix);
-}
+// crate for rendering purposes
 var cubePos;
 var cubeTex;
 var cubeIdx;
+var cubeTexture;
 function draw_crate() {
     // if the crate's buffers haven't been initialized yet, do so now
     if (!cubePos) {
+        cubeTexture = loadTexture("textures/crate.gif");
         // create the vertex positions of the cube
         cubePos = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, cubePos);
@@ -312,12 +229,115 @@ function draw_crate() {
     gl.vertexAttribPointer(shader.getShader().textureCoordAttribute, cubeTex.itemSize, gl.FLOAT, false, 0, 0);
     // load up the texture and send to the shader
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, crate_texture);
+    gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
     gl.uniform1i(shader.getShader().samplerUniform, 0);
     // setup indices and draw the crate
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIdx);
     setMatrixUniforms();
     gl.drawElements(gl.TRIANGLES, cubeIdx.numItems, gl.UNSIGNED_SHORT, 0);
+}
+class Shader {
+    constructor() {
+        //this.init_shaders();
+    }
+    getShader() { return this.shader; }
+    // read shader information from the main HTML file
+    load_shader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript)
+            return null;
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3)
+                str += k.textContent;
+            k = k.nextSibling;
+        }
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment")
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        else if (shaderScript.type == "x-shader/x-vertex")
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        else
+            return null;
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+    // compile the shaders
+    init_shaders() {
+        var fragmentShader = this.load_shader(gl, "shader-fs");
+        var vertexShader = this.load_shader(gl, "shader-vs");
+        this.shader = gl.createProgram();
+        gl.attachShader(this.shader, vertexShader);
+        gl.attachShader(this.shader, fragmentShader);
+        gl.linkProgram(this.shader);
+        if (!gl.getProgramParameter(this.shader, gl.LINK_STATUS))
+            alert("ERROR: Could not initialize shaders");
+        gl.useProgram(this.shader);
+        // position
+        this.shader.vertexPositionAttribute = gl.getAttribLocation(this.shader, "position");
+        gl.enableVertexAttribArray(this.shader.vertexPositionAttribute);
+        // texture coordinates
+        this.shader.textureCoordAttribute = gl.getAttribLocation(this.shader, "tex_coords");
+        gl.enableVertexAttribArray(this.shader.textureCoordAttribute);
+        // perspective and model and view matrices in shader
+        this.shader.pMatrixUniform = gl.getUniformLocation(this.shader, "proj_matrix");
+        this.shader.vMatrixUniform = gl.getUniformLocation(this.shader, "view_matrix");
+        this.shader.mMatrixUniform = gl.getUniformLocation(this.shader, "model_matrix");
+        // texture (as sampler2D)
+        this.shader.samplerUniform = gl.getUniformLocation(this.shader, "tex");
+    }
+}
+let shader = new Shader();
+class Terrain {
+    constructor() {
+    }
+}
+let terrain = new Terrain();
+function handleLoadedTexture(texture) {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+function loadTexture(file_path) {
+    var texture = gl.createTexture();
+    texture.image = new Image();
+    texture.image.onload = function () {
+        handleLoadedTexture(texture);
+    };
+    texture.image.src = file_path;
+    return texture;
+}
+var gl, canvas; // opengl and canvas instance
+// initialize opengl
+function initGL(canvas) {
+    // check if the browser supports WebGL
+    try {
+        gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        gl.viewportWidth = canvas.width;
+        gl.viewportHeight = canvas.height;
+    }
+    catch (e) { }
+    if (!gl)
+        alert("ERROR: Could not initialize WebGL");
+    // check if the browser supports mouse locking
+    try {
+        var havePointerLock = 'pointerLockElement' in document ||
+            'mozPointerLockElement' in document ||
+            'webkitPointerLockElement' in document;
+    }
+    catch (e) { }
+    if (!havePointerLock)
+        alert("ERROR: Your browser does not support mouse locking");
 }
 // time based on the framerate so it's constant no matter how slow or fast the game is running
 var deltaTime = 0.0, lastFrame = 0.0;
@@ -349,16 +369,6 @@ function tick() {
     drawScene();
     animate();
 }
-function updatePosition(e) {
-    cam.x += e.movementX;
-    cam.y -= e.movementY;
-}
-function lockChangeAlert() {
-    if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas || document.webkitPointerLockElement || document.msPointerLockElement)
-        document.addEventListener("mousemove", updatePosition, false);
-    else
-        document.removeEventListener("mousemove", updatePosition, false);
-}
 function webGLStart() {
     canvas = document.getElementById("glCanvas");
     // mouse locking
@@ -380,7 +390,6 @@ function webGLStart() {
     cam.setLastXY(canvas.width / 2.0, canvas.height / 2.0);
     cam.tracker = document.getElementById("tracker");
     initGL(canvas);
-    loadTexture();
     shader.init_shaders();
     gl.clearColor(0.1, 0.2, 0.05, 1.0);
     gl.enable(gl.DEPTH_TEST);
