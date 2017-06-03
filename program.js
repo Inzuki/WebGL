@@ -84,7 +84,7 @@ class Camera {
     handle_keyboard_input() {
         var ts_speed = cam.getSpeed() * deltaTime;
         var speedVec = vec3.create();
-        speedVec = [ts_speed, ts_speed, ts_speed];
+        speedVec = new Float32Array([ts_speed, ts_speed, ts_speed]);
         var vecTrash = vec3.create();
         if (currentlyPressedKeys[87]) {
             vec3.multiply(vecTrash, this.cameraFront, speedVec);
@@ -112,7 +112,7 @@ let cam = new Camera();
 // Shader class
 class Shader {
     constructor() {
-        //this.init_shaders();
+        this.init_shaders();
     }
     // read shader information from the main HTML file
     load_shader(gl, id) {
@@ -327,11 +327,11 @@ function drawScene() {
     cam.setCamY(2.5);
     var posPlusFront = vec3.create();
     vec3.add(posPlusFront, cam.getCameraPos(), cam.getCameraFront());
-    mat4.lookAt(vMatrix, cam.getCameraPos(), posPlusFront, cam.getCameraUp(), [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    mat4.lookAt(vMatrix, cam.getCameraPos(), posPlusFront, cam.getCameraUp());
     mat4.perspective(pMatrix, 45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
     mat4.identity(mMatrix);
     mvPushMatrix();
-    mat4.translate(mMatrix, mMatrix, [0.0, 0.0, -3.0]);
+    mat4.translate(mMatrix, mMatrix, new Float32Array([0.0, 0.0, -3.0]));
     draw_crate();
     mvPopMatrix();
 }
@@ -353,7 +353,7 @@ function updatePosition(e) {
     cam.y -= e.movementY;
 }
 function lockChangeAlert() {
-    if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas)
+    if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas || document.webkitPointerLockElement || document.msPointerLockElement)
         document.addEventListener("mousemove", updatePosition, false);
     else
         document.removeEventListener("mousemove", updatePosition, false);
@@ -361,11 +361,18 @@ function lockChangeAlert() {
 function webGLStart() {
     canvas = document.getElementById("glCanvas");
     // mouse locking
-    canvas.requestPointerLock = canvas.requestPointerLock ||
-        canvas.mozRequestPointerLock;
-    document.exitPointerLock = document.exitPointerLock ||
-        document.mozExitPointerLock;
+    canvas.requestPointerLock = canvas['requestPointerLock'] ||
+        canvas['mozRequestPointerLock'] ||
+        canvas['webkitRequestPointerLock'] ||
+        canvas['msRequestPointerLock'] ||
+        function () { };
+    canvas.exitPointerLock = document['exitPointerLock'] ||
+        document['mozExitPointerLock'] ||
+        document['webkitExitPointerLock'] ||
+        document['msExitPointerLock'] ||
+        function () { };
     canvas.onclick = function () { canvas.requestPointerLock(); };
+    canvas.exitPointerLock = canvas.exitPointerLock.bind(document);
     document.addEventListener('pointerlockchange', lockChangeAlert, false);
     document.addEventListener('mozpointerlockchange', lockChangeAlert, false);
     // set where the cursor will lock to
@@ -373,7 +380,7 @@ function webGLStart() {
     cam.tracker = document.getElementById("tracker");
     initGL(canvas);
     loadTexture();
-    c_shader.init_shaders();
+    //c_shader.init_shaders();
     gl.clearColor(0.1, 0.2, 0.05, 1.0);
     gl.enable(gl.DEPTH_TEST);
     tick();
