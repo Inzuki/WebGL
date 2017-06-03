@@ -112,8 +112,9 @@ let cam = new Camera();
 // Shader class
 class Shader {
     constructor() {
-        this.init_shaders();
+        //this.init_shaders();
     }
+    getShader() { return this.shader; }
     // read shader information from the main HTML file
     load_shader(gl, id) {
         var shaderScript = document.getElementById(id);
@@ -166,7 +167,7 @@ class Shader {
         this.shader.samplerUniform = gl.getUniformLocation(this.shader, "tex");
     }
 }
-let c_shader = new Shader();
+let shader = new Shader();
 function handleLoadedTexture(texture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -202,9 +203,9 @@ function mvPopMatrix() {
     mMatrix = mMatrixStack.pop();
 }
 function setMatrixUniforms() {
-    gl.uniformMatrix4fv(c_shader.shader.pMatrixUniform, false, pMatrix);
-    gl.uniformMatrix4fv(c_shader.shader.vMatrixUniform, false, vMatrix);
-    gl.uniformMatrix4fv(c_shader.shader.mMatrixUniform, false, mMatrix);
+    gl.uniformMatrix4fv(shader.getShader().pMatrixUniform, false, pMatrix);
+    gl.uniformMatrix4fv(shader.getShader().vMatrixUniform, false, vMatrix);
+    gl.uniformMatrix4fv(shader.getShader().mMatrixUniform, false, mMatrix);
 }
 var cubePos;
 var cubeTex;
@@ -305,14 +306,14 @@ function draw_crate() {
     }
     // load up the vertex positions and send to the shader
     gl.bindBuffer(gl.ARRAY_BUFFER, cubePos);
-    gl.vertexAttribPointer(c_shader.shader.vertexPositionAttribute, cubePos.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(shader.getShader().vertexPositionAttribute, cubePos.itemSize, gl.FLOAT, false, 0, 0);
     // load up the texture coordinates and send to the shader
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeTex);
-    gl.vertexAttribPointer(c_shader.shader.textureCoordAttribute, cubeTex.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(shader.getShader().textureCoordAttribute, cubeTex.itemSize, gl.FLOAT, false, 0, 0);
     // load up the texture and send to the shader
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, crate_texture);
-    gl.uniform1i(c_shader.shader.samplerUniform, 0);
+    gl.uniform1i(shader.getShader().samplerUniform, 0);
     // setup indices and draw the crate
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIdx);
     setMatrixUniforms();
@@ -380,7 +381,7 @@ function webGLStart() {
     cam.tracker = document.getElementById("tracker");
     initGL(canvas);
     loadTexture();
-    //c_shader.init_shaders();
+    shader.init_shaders();
     gl.clearColor(0.1, 0.2, 0.05, 1.0);
     gl.enable(gl.DEPTH_TEST);
     tick();
